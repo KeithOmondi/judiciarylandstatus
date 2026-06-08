@@ -17,6 +17,21 @@ export type CaseCategory =
   | 'Land'
   | 'Miscellaneous';
 export type RepresentationType = 'State Law' | 'In House' | 'External' | 'EACC';
+export type CourtLevel = 
+  | 'Supreme Court'
+  | 'Court of Appeal'
+  | 'High Court'
+  | 'Employment and Labour Relations Court'
+  | 'Environment and Land Court'
+  | 'Chief Magistrate Court'
+  | 'Senior Principal Magistrate Court'
+  | 'Principal Magistrate Court'
+  | 'Senior Resident Magistrate Court'
+  | 'Resident Magistrate Court'
+  | 'Small Claims Court'
+  | 'Kadhis Court'
+  | 'Tribunal'
+  | 'Other';
 
 export interface CourtCase {
   id: number;
@@ -24,6 +39,7 @@ export interface CourtCase {
   ocrj_file_ref: string;
   year: number;
   type_of_case: CaseType;
+  court_level: CourtLevel | null;
   court_station: string | null;
   court_file_ref: string | null;
   plaintiff: string | null;
@@ -47,6 +63,8 @@ export interface CourtCaseFilters {
   category?: CaseCategory;
   judiciary_representation?: RepresentationType;
   year?: number;
+  court_level?: CourtLevel;
+  court_station?: string;
   search?: string;
   page?: number;
   limit?: number;
@@ -57,6 +75,7 @@ export interface CreateCourtCasePayload {
   ocrj_file_ref: string;
   year: number;
   type_of_case: CaseType;
+  court_level?: CourtLevel;
   court_station?: string;
   court_file_ref?: string;
   plaintiff?: string;
@@ -89,10 +108,28 @@ interface CourtCaseState {
   loading: {
     list: boolean;
     detail: boolean;
-    mutating: boolean;   // covers create / update / delete
+    mutating: boolean;
   };
   error: string | null;
 }
+
+// Court levels constant for dropdown
+export const COURT_LEVELS: CourtLevel[] = [
+  'Supreme Court',
+  'Court of Appeal',
+  'High Court',
+  'Employment and Labour Relations Court',
+  'Environment and Land Court',
+  'Chief Magistrate Court',
+  'Senior Principal Magistrate Court',
+  'Principal Magistrate Court',
+  'Senior Resident Magistrate Court',
+  'Resident Magistrate Court',
+  'Small Claims Court',
+  'Kadhis Court',
+  'Tribunal',
+  'Other'
+];
 
 /* ============================================================
    INITIAL STATE
@@ -194,7 +231,6 @@ const courtCaseSlice = createSlice({
   name: 'courtCases',
   initialState,
   reducers: {
-    // Lets UI components update filters without immediately fetching
     setFilters(state, action: PayloadAction<Partial<CourtCaseFilters>>) {
       state.filters = { ...state.filters, ...action.payload, page: 1 };
     },
@@ -253,7 +289,7 @@ const courtCaseSlice = createSlice({
       })
       .addCase(createCourtCase.fulfilled, (state, action) => {
         state.loading.mutating = false;
-        state.cases.unshift(action.payload);   // prepend so it appears first
+        state.cases.unshift(action.payload);
         state.pagination.total += 1;
       })
       .addCase(createCourtCase.rejected, (state, action) => {

@@ -16,12 +16,14 @@ import {
   selectCourtCaseMutating,
   selectCourtCaseError,
   selectSelectedCase,
+  COURT_LEVELS,
   type CourtCase,
   type CreateCourtCasePayload,
   type CaseStatus,
   type CaseType,
   type CaseCategory,
   type RepresentationType,
+  type CourtLevel,
 } from '../../store/slices/courtCaseSlice';
 import { useAppDispatch, useAppSelector } from '../../store/hook';
 
@@ -44,6 +46,7 @@ const EMPTY_FORM: CreateCourtCasePayload = {
   year: CURRENT_YEAR,
   type_of_case: 'Court',
   date_of_filing: '',
+  court_level: undefined,
   court_station: '',
   court_file_ref: '',
   plaintiff: '',
@@ -88,6 +91,33 @@ const typeBadge = (type: CaseType) => {
   );
 };
 
+const courtLevelBadge = (level: CourtLevel | null | undefined) => {
+  if (!level) return <span className="text-slate-300">—</span>;
+  
+  const styles: Record<CourtLevel, string> = {
+    'Supreme Court': 'bg-purple-100 text-purple-700',
+    'Court of Appeal': 'bg-indigo-100 text-indigo-700',
+    'High Court': 'bg-blue-100 text-blue-700',
+    'Employment and Labour Relations Court': 'bg-teal-100 text-teal-700',
+    'Environment and Land Court': 'bg-emerald-100 text-emerald-700',
+    'Chief Magistrate Court': 'bg-green-100 text-green-700',
+    'Senior Principal Magistrate Court': 'bg-cyan-100 text-cyan-700',
+    'Principal Magistrate Court': 'bg-sky-100 text-sky-700',
+    'Senior Resident Magistrate Court': 'bg-lime-100 text-lime-700',
+    'Resident Magistrate Court': 'bg-amber-100 text-amber-700',
+    'Small Claims Court': 'bg-orange-100 text-orange-700',
+    'Kadhis Court': 'bg-rose-100 text-rose-700',
+    'Tribunal': 'bg-slate-100 text-slate-700',
+    'Other': 'bg-gray-100 text-gray-700',
+  };
+  
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${styles[level]}`}>
+      {level}
+    </span>
+  );
+};
+
 const fmt = (val: string | number | null | undefined) =>
   val ? <span className="truncate block max-w-[180px]" title={String(val)}>{val}</span> : <span className="text-slate-300">—</span>;
 
@@ -113,7 +143,7 @@ const Spinner = ({ size = 'sm' }: { size?: 'sm' | 'md' }) => (
   </svg>
 );
 
-// ── Form Field (reused from original) ─────────────────────────
+// ── Form Field ────────────────────────────────────────────────
 const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
   <div className="flex flex-col gap-1">
     <label className="text-xs font-medium text-slate-600 uppercase tracking-wide">
@@ -126,7 +156,7 @@ const Field = ({ label, required, children }: { label: string; required?: boolea
 const inputCls = 'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition';
 const selectCls = `${inputCls} cursor-pointer`;
 
-// ── Confirm Delete Modal (unchanged) ──────────────────────────
+// ── Confirm Delete Modal ──────────────────────────────────────
 const DeleteModal = ({
   caseItem,
   onConfirm,
@@ -177,7 +207,7 @@ const DeleteModal = ({
   </div>
 );
 
-// ── Add / Edit Modal (unchanged, already contains all fields) ──
+// ── Add / Edit Modal ──
 const CaseModal = ({
   initial,
   onSubmit,
@@ -198,6 +228,7 @@ const CaseModal = ({
           year: initial.year,
           type_of_case: initial.type_of_case,
           date_of_filing: initial.date_of_filing?.split('T')[0] ?? '',
+          court_level: initial.court_level ?? undefined,
           court_station: initial.court_station ?? '',
           court_file_ref: initial.court_file_ref ?? '',
           plaintiff: initial.plaintiff ?? '',
@@ -234,9 +265,13 @@ const CaseModal = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    const cleaned = Object.fromEntries(
-      Object.entries(form).map(([k, v]) => [k, v === '' ? undefined : v])
-    ) as CreateCourtCasePayload;
+    
+    const cleaned = {
+      ...Object.fromEntries(
+        Object.entries(form).map(([k, v]) => [k, v === '' ? undefined : v])
+      ),
+    } as CreateCourtCasePayload;
+    
     onSubmit(cleaned);
   };
 
@@ -287,10 +322,21 @@ const CaseModal = ({
               <input type="date" className={inputCls} value={form.date_of_filing ?? ''}
                 onChange={(e) => set('date_of_filing', e.target.value)} />
             </Field>
-            <Field label="Court Station">
-              <input className={inputCls} value={form.court_station ?? ''}
-                onChange={(e) => set('court_station', e.target.value)} placeholder="e.g. Milimani ELRC" />
+            
+            {/* Court Level Field - Direct from backend */}
+            <Field label="Court Level">
+              <select className={selectCls} value={form.court_level ?? ''}
+                onChange={(e) => set('court_level', e.target.value as CourtLevel || undefined)}>
+                <option value="">— Select court level —</option>
+                {COURT_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
+              </select>
             </Field>
+            <Field label="Station Location">
+              <input className={inputCls} value={form.court_station ?? ''}
+                onChange={(e) => set('court_station', e.target.value)} 
+                placeholder="e.g. Eldoret, Milimani, Kisumu" />
+            </Field>
+            
             <Field label="Plaintiff / Petitioner">
               <input className={inputCls} value={form.plaintiff ?? ''}
                 onChange={(e) => set('plaintiff', e.target.value)} placeholder="Name or entity" />
@@ -374,7 +420,7 @@ const CaseModal = ({
 };
 
 /* ============================================================
-   MAIN PAGE (UPDATED TABLE)
+   MAIN PAGE
 ============================================================ */
 const AdminCourtCases = () => {
   const dispatch = useAppDispatch();
@@ -495,7 +541,7 @@ const AdminCourtCases = () => {
           </div>
         )}
 
-        {/* Filters row (unchanged) */}
+        {/* Filters row */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-4">
           <div className="flex flex-wrap items-center gap-3 px-4 py-3">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -524,6 +570,14 @@ const AdminCourtCases = () => {
             >
               <option value="">All types</option>
               {CASE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select
+              value={filters.court_level ?? ''}
+              onChange={(e) => handleFilterChange('court_level', e.target.value)}
+              className="rounded-lg border border-slate-200 text-sm px-3 py-2 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="">All court levels</option>
+              {COURT_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
             </select>
             <select
               value={filters.category ?? ''}
@@ -558,17 +612,18 @@ const AdminCourtCases = () => {
           </div>
         </div>
 
-        {/* Table with ALL columns */}
+        {/* Table with separate court_level and court_station columns */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[1200px]">
+            <table className="w-full text-sm min-w-[1300px]">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">OCRJ Ref</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Year</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Filing Date</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Court Station</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Court Level</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Station</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Court File Ref</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Plaintiff</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Defendant</th>
@@ -580,14 +635,14 @@ const AdminCourtCases = () => {
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Latest Update</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Outcome</th>
-                  <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Legal Fees (KSh)</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Legal Fees</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {listLoading ? (
                   <tr>
-                    <td colSpan={18} className="py-20 text-center">
+                    <td colSpan={19} className="py-20 text-center">
                       <div className="flex flex-col items-center gap-2 text-slate-400">
                         <Spinner size="md" />
                         <span className="text-sm">Loading cases…</span>
@@ -596,7 +651,7 @@ const AdminCourtCases = () => {
                   </tr>
                 ) : cases.length === 0 ? (
                   <tr>
-                    <td colSpan={18} className="py-20 text-center">
+                    <td colSpan={19} className="py-20 text-center">
                       <div className="flex flex-col items-center gap-2 text-slate-400">
                         <svg className="w-10 h-10 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
@@ -614,7 +669,10 @@ const AdminCourtCases = () => {
                       <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{c.year}</td>
                       <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{formatDate(c.date_of_filing)}</td>
                       <td className="px-3 py-2">{typeBadge(c.type_of_case)}</td>
-                      <td className="px-3 py-2 text-slate-600 max-w-[150px] truncate" title={c.court_station ?? ''}>{fmt(c.court_station)}</td>
+                      <td className="px-3 py-2">{courtLevelBadge(c.court_level)}</td>
+                      <td className="px-3 py-2 text-slate-600 max-w-[150px] truncate" title={c.court_station ?? ''}>
+                        {c.court_station || <span className="text-slate-300">—</span>}
+                      </td>
                       <td className="px-3 py-2 text-slate-600 max-w-[150px] truncate" title={c.court_file_ref ?? ''}>{fmt(c.court_file_ref)}</td>
                       <td className="px-3 py-2 text-slate-700 max-w-[180px] truncate" title={c.plaintiff ?? ''}>{fmt(c.plaintiff)}</td>
                       <td className="px-3 py-2 text-slate-700 max-w-[180px] truncate" title={c.defendant ?? ''}>{fmt(c.defendant)}</td>
