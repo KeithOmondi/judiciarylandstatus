@@ -8,6 +8,8 @@ interface NavItem {
   icon: React.ReactNode;
   badge?: number;
   isExternal?: boolean;
+  hasSeparatorBefore?: boolean; // Added flag for separation
+  hasSeparatorAfter?: boolean;  // Added flag for separation
 }
 
 interface NavSection {
@@ -78,6 +80,17 @@ const navigationConfig: NavSection[] = [
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
         ),
+      },
+      {
+        to: '/admin/land',
+        label: 'Land Records',
+        icon: (
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        ),
+        hasSeparatorBefore: true, // Separates from Staff Criminal above
+        hasSeparatorAfter: true,  // Separates from Reports below
       },
       {
         to: '/admin/reports',
@@ -202,7 +215,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
               </p>
               <div className="flex flex-col gap-1">
                 {group.items.map((item) => (
-                  <SidebarLink key={item.to} item={item} onClose={onClose} />
+                  <React.Fragment key={item.to}>
+                    {item.hasSeparatorBefore && (
+                      <hr className="my-1.5 mx-2 border-stone-100" />
+                    )}
+                    <SidebarLink item={item} onClose={onClose} />
+                    {item.hasSeparatorAfter && (
+                      <hr className="my-1.5 mx-2 border-stone-100" />
+                    )}
+                  </React.Fragment>
                 ))}
               </div>
             </div>
