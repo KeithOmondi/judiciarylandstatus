@@ -358,31 +358,113 @@ interface DetailViewModalProps {
   onClose: () => void;
 }
 
+/* ============================================================
+   DETAIL VIEW MODAL
+============================================================ */
+
+interface DetailViewModalProps {
+  record: LandStatus;
+  onClose: () => void;
+}
+
 const DetailViewModal = ({ record, onClose }: DetailViewModalProps) => {
+  // Helper to display full text without truncation
+  const displayText = (val: string | null | undefined) => 
+    val ? <span className="break-words">{val}</span> : <span className="text-slate-300">—</span>;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl my-8 rounded-xl bg-white shadow-2xl">
+      <div className="relative z-10 w-full max-w-3xl my-8 rounded-xl bg-white shadow-2xl">
         <div className="flex justify-between items-center px-6 py-4 border-b">
-          <h2 className="text-base font-semibold">Land Record Details</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
+          <h2 className="text-lg font-semibold text-slate-900">Land Record Details</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <div className="px-6 py-5 max-h-[70vh] overflow-y-auto space-y-4">
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><span className="font-medium">County:</span> {record.county}</div>
-            <div><span className="font-medium">File Ref:</span> {fmt(record.file_ref)}</div>
-            <div className="col-span-2"><span className="font-medium">Property:</span> {fmt(record.property)}</div>
-            <div><span className="font-medium">Title/Percil Number:</span> {fmt(record.title_percil_number)}</div>
-            <div><span className="font-medium">Acreage:</span> {formatAcreage(record.acreage)}</div>
-            <div className="col-span-2"><span className="font-medium">Location:</span> {fmt(record.location)}</div>
-            <div><span className="font-medium">Status:</span> <span className={`px-2 py-0.5 rounded-full text-xs ${getStatusBadgeClass(record.status)}`}>{record.status || '—'}</span></div>
-            <div className="col-span-2"><span className="font-medium">Current/Intended Use:</span> {fmt(record.current_intended_use)}</div>
-            <div className="col-span-2"><span className="font-medium">Ownership Status:</span> {fmt(record.ownership_status)}</div>
-            <div className="col-span-2"><span className="font-medium">Possessions:</span> {fmt(record.possessions)}</div>
-            <div><span className="font-medium">Fencing:</span> {fmt(record.fencing)}</div>
-            <div><span className="font-medium">Disputes:</span> {fmt(record.disputes)}</div>
-            <div className="col-span-2"><span className="font-medium">Recommendation:</span> <p className="mt-1 text-slate-600 whitespace-pre-wrap">{record.recommendation || '—'}</p></div>
+        <div className="px-6 py-5 max-h-[70vh] overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">County</dt>
+              <dd className="text-sm text-slate-900 font-medium">{record.county}</dd>
+            </div>
+            
+            <div className="space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">File Ref</dt>
+              <dd className="text-sm text-slate-700 break-words">{displayText(record.file_ref)}</dd>
+            </div>
+            
+            <div className="space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Property</dt>
+              <dd className="text-sm text-slate-700 break-words">{displayText(record.property)}</dd>
+            </div>
+            
+            <div className="space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Title/Percil Number</dt>
+              <dd className="text-sm text-slate-700 break-words">{displayText(record.title_percil_number)}</dd>
+            </div>
+            
+            <div className="space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Acreage</dt>
+              <dd className="text-sm text-slate-700 break-words">{formatAcreage(record.acreage)}</dd>
+            </div>
+            
+            <div className="space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</dt>
+              <dd>
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(record.status)}`}>
+                  {record.status || '—'}
+                </span>
+              </dd>
+            </div>
+            
+            <div className="col-span-1 md:col-span-2 space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Location</dt>
+              <dd className="text-sm text-slate-700 break-words">{displayText(record.location)}</dd>
+            </div>
+            
+            <div className="col-span-1 md:col-span-2 space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Current/Intended Use</dt>
+              <dd className="text-sm text-slate-700 break-words">{displayText(record.current_intended_use)}</dd>
+            </div>
+            
+            <div className="col-span-1 md:col-span-2 space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Ownership Status</dt>
+              <dd className="text-sm text-slate-700 break-words">{displayText(record.ownership_status)}</dd>
+            </div>
+            
+            <div className="col-span-1 md:col-span-2 space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Possessions</dt>
+              <dd className="text-sm text-slate-700 break-words">{displayText(record.possessions)}</dd>
+            </div>
+            
+            <div className="space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Fencing</dt>
+              <dd className="text-sm text-slate-700 break-words">{displayText(record.fencing)}</dd>
+            </div>
+            
+            <div className="space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Disputes</dt>
+              <dd className="text-sm text-slate-700 break-words">{displayText(record.disputes)}</dd>
+            </div>
+            
+            <div className="col-span-1 md:col-span-2 space-y-1">
+              <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">Recommendation</dt>
+              <dd className="text-sm text-slate-700 whitespace-pre-wrap break-words">
+                {record.recommendation || <span className="text-slate-300">—</span>}
+              </dd>
+            </div>
           </div>
+        </div>
+        <div className="flex justify-end px-6 py-4 border-t bg-slate-50 rounded-b-xl">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>
@@ -632,7 +714,7 @@ const AdminLands = () => {
                       {header}
                     </th>
                   ))}
-                </tr>
+                 </tr>
               </thead>
               <tbody>
                 {listLoading ? (
@@ -674,6 +756,16 @@ const AdminLands = () => {
                       <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           <button
+                            onClick={() => openView(record)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 rounded-md"
+                            title="View"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
+                          <button
                             onClick={() => openEdit(record)}
                             className="p-1.5 text-slate-400 hover:text-blue-600 rounded-md"
                             title="Edit"
@@ -708,6 +800,7 @@ const AdminLands = () => {
                 {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total.toLocaleString()}
               </span>
               <div className="flex items-center gap-1">
+                
                 <button
                   disabled={pagination.page === 1}
                   onClick={() => handlePageChange(pagination.page - 1)}
