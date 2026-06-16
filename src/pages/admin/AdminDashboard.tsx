@@ -3,41 +3,21 @@
 import { useEffect, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hook";
 import {
-  fetchLegalDues,
-  selectLegalDuesSummary,
-  selectAllLegalDues,
-  selectLegalDuesListLoading,
-} from "../../store/slices/legalduesSlice";
-import {
-  fetchDemands,
-  selectAllDemands,
-  selectDemandsListLoading,
-  formatCurrency,
-} from "../../store/slices/demandsSlice";
-import {
-  fetchStaffCases,
-  selectStaffCasesSummary,
-  selectAllStaffCases,
-  selectStaffCasesListLoading,
-} from "../../store/slices/staffCasesSlice";
+  fetchLandStatus,
+  selectAllLandStatus,
+  selectLandStatusSummary,
+  selectLandStatusListLoading,
+  formatAcreage,
+  getStatusBadgeClass,
+} from "../../store/slices/landSlice";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const StatusPill = ({ status }: { status: string }) => {
-  const styles: Record<string, string> = {
-    Ongoing:   "bg-amber-100 text-amber-800",
-    Concluded: "bg-emerald-100 text-emerald-800",
-    Unpaid:    "bg-red-100 text-red-700",
-    Partial:   "bg-blue-100 text-blue-700",
-    pending:   "bg-amber-100 text-amber-700",
-    in_negotiation: "bg-blue-100 text-blue-700",
-    settled:   "bg-emerald-100 text-emerald-700",
-    escalated: "bg-rose-100 text-rose-700",
-    suspension: "bg-amber-100 text-amber-700",
-    interdiction: "bg-red-100 text-red-700",
-  };
+const StatusPill = ({ status }: { status: string | null }) => {
+  if (!status) return <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">—</span>;
+  const badgeClass = getStatusBadgeClass(status);
   return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${styles[status] ?? "bg-gray-100 text-gray-600"}`}>
+    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${badgeClass}`}>
       {status.replace(/_/g, ' ').toUpperCase()}
     </span>
   );
@@ -49,117 +29,118 @@ const AdminDashboard = () => {
   const dispatch = useAppDispatch();
   const [search, setSearch] = useState("");
 
-  // Legal Dues Data
-  const legalSummary = useAppSelector(selectLegalDuesSummary);
-  const allLegalDues = useAppSelector(selectAllLegalDues);
-  const legalLoading = useAppSelector(selectLegalDuesListLoading);
+  // Land data
+  const allLand = useAppSelector(selectAllLandStatus);
+  const summary = useAppSelector(selectLandStatusSummary);
+  const loading = useAppSelector(selectLandStatusListLoading);
 
-  // Demands Data - removed unused demandsSummary
-  const allDemands = useAppSelector(selectAllDemands);
-  const demandsLoading = useAppSelector(selectDemandsListLoading);
-
-  // Staff Cases Data
-  const staffSummary = useAppSelector(selectStaffCasesSummary);
-  const allStaffCases = useAppSelector(selectAllStaffCases);
-  const staffLoading = useAppSelector(selectStaffCasesListLoading);
-
-  // Fetch all data on mount
+  // Fetch land data on mount
   useEffect(() => {
-    dispatch(fetchLegalDues({ limit: 50 }));
-    dispatch(fetchDemands({ limit: 50 }));
-    dispatch(fetchStaffCases({ limit: 50 }));
+    dispatch(fetchLandStatus({ limit: 100 }));
   }, [dispatch]);
 
-  // Calculate metrics from real data
-  const totalCases = allLegalDues.length + allDemands.length + allStaffCases.length;
-  
-  const ongoingCases = allLegalDues.filter(d => d.status === 'pending' || d.status === 'partial').length +
-                       allDemands.filter(d => d.status === 'pending' || d.status === 'in_negotiation').length +
-                       allStaffCases.filter(s => s.latest_action === 'interdiction' || s.latest_action === 'suspension').length;
+  // ── Compute metrics ──
+  const totalProperties = summary?.total_properties ?? 0;
+  const totalCounties = summary?.counties ?? 0;
 
-  const outstandingDues = legalSummary?.total_outstanding_all ?? 0;
-  const totalDues = (legalSummary?.total_outstanding_all ?? 0) + (legalSummary?.total_paid_all ?? 0);
+  const disputedCount = allLand.filter(
+    (l) => l.disputes && l.disputes.trim().length > 0
+  ).length;
 
-  const staffCasesCount = staffSummary?.total_cases ?? 0;
-  const interdictionCount = staffSummary?.interdiction_count ?? 0;
+  const ownedCount = allLand.filter(
+    (l) => l.ownership_status?.toLowerCase() === 'owned'
+  ).length;
 
   const METRICS = [
-    { label: "Total Cases", value: totalCases.toString(), delta: `${allLegalDues.length} legal, ${allDemands.length} demands, ${allStaffCases.length} staff`, trend: "up", color: "#2563EB", loading: legalLoading || demandsLoading || staffLoading },
-    { label: "Ongoing", value: ongoingCases.toString(), delta: "Require action", trend: "neutral", color: "#D97706", loading: legalLoading || demandsLoading },
-    { label: "Outstanding Dues", value: formatCurrency(outstandingDues), delta: `of ${formatCurrency(totalDues)} total`, trend: "down", color: "#DC2626", loading: legalLoading },
-    { label: "Staff Criminal", value: staffCasesCount.toString(), delta: `${interdictionCount} under interdiction`, trend: "down", color: "#7C3AED", loading: staffLoading },
+    {
+      label: "Total Properties",
+      value: totalProperties.toString(),
+      delta: `${allLand.length} loaded`,
+      trend: "up",
+      color: "#2563EB",
+      loading,
+    },
+    {
+      label: "Counties",
+      value: totalCounties.toString(),
+      delta: "represented",
+      trend: "neutral",
+      color: "#7C3AED",
+      loading,
+    },
+    {
+      label: "Disputed",
+      value: disputedCount.toString(),
+      delta: `${((disputedCount / (totalProperties || 1)) * 100).toFixed(1)}% of total`,
+      trend: "down",
+      color: "#DC2626",
+      loading,
+    },
+    {
+      label: "Owned Properties",
+      value: ownedCount.toString(),
+      delta: `${((ownedCount / (totalProperties || 1)) * 100).toFixed(1)}%`,
+      trend: "up",
+      color: "#059669",
+      loading,
+    },
   ];
 
-  // Get recent cases from legal dues
-  const recentLegalDues = allLegalDues.slice(0, 5).map(due => ({
-    id: due.id,
-    ref: due.reference_number || `LD-${due.id}`,
-    plaintiff: due.debtors.map(d => d.name).join(', '),
-    category: due.type.replace(/_/g, ' ').toUpperCase(),
-    station: due.cases[0]?.court_station || 'Various',
-    status: due.status === 'pending' ? 'Ongoing' : due.status === 'paid' ? 'Concluded' : due.status,
-    filed: due.date_incurred ? new Date(due.date_incurred).toLocaleDateString('en-KE') : 'N/A'
-  }));
-
-  // Get recent demands
-  const recentDemands = allDemands.slice(0, 3).map(demand => ({
-    id: demand.id,
-    ref: demand.demand_number,
-    plaintiff: demand.claimant_name,
-    category: demand.direction === 'incoming' ? 'Demand In' : 'Demand Out',
-    station: 'N/A',
-    status: demand.status === 'pending' ? 'Ongoing' : demand.status === 'settled' ? 'Concluded' : demand.status,
-    filed: new Date(demand.date_received).toLocaleDateString('en-KE')
-  }));
-
-  // Combine recent cases
-  const RECENT_CASES = [...recentLegalDues, ...recentDemands].slice(0, 5);
-
-  // Category breakdown from legal dues
-  const typeCounts: Record<string, number> = {};
-  allLegalDues.forEach(due => {
-    const type = due.type.replace(/_/g, ' ').toUpperCase();
-    typeCounts[type] = (typeCounts[type] || 0) + 1;
+  // ── County breakdown ──
+  const countyCounts: Record<string, number> = {};
+  allLand.forEach((l) => {
+    const county = l.county || "Unknown";
+    countyCounts[county] = (countyCounts[county] || 0) + 1;
   });
-  
-  const CATEGORY_BREAKDOWN = Object.entries(typeCounts)
-    .map(([label, count]) => ({ label, count, max: Math.max(...Object.values(typeCounts), 1) }))
+  const COUNTY_BREAKDOWN = Object.entries(countyCounts)
+    .map(([label, count]) => ({ label, count, max: Math.max(...Object.values(countyCounts), 1) }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  // ── Status breakdown ──
+  const statusCounts: Record<string, number> = {};
+  allLand.forEach((l) => {
+    const st = l.status || "Unknown";
+    statusCounts[st] = (statusCounts[st] || 0) + 1;
+  });
+  const STATUS_BREAKDOWN = Object.entries(statusCounts)
+    .map(([label, count]) => ({ label, count, max: Math.max(...Object.values(statusCounts), 1) }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
 
-  // Top outstanding dues
-  const TOP_DUES = allLegalDues
-    .filter(d => d.outstanding_amount > 0)
-    .sort((a, b) => b.outstanding_amount - a.outstanding_amount)
-    .slice(0, 3)
-    .map(due => ({
-      debtor: due.debtors.map(d => d.name).join(', '),
-      dispute: due.dispute_description?.substring(0, 60) || 'N/A',
-      amount: formatCurrency(due.outstanding_amount).replace('KSh ', ''),
-      status: due.outstanding_amount === due.total_amount ? 'Unpaid' : 'Partial'
+  // ── Recent records ──
+  const RECENT_RECORDS = allLand
+    .slice(0, 5)
+    .map((record) => ({
+      id: record.id,
+      ref: record.file_ref || `L-${record.id}`,
+      property: record.property || "—",
+      county: record.county || "—",
+      status: record.status,
+      acreage: formatAcreage(record.acreage),
+      created: new Date(record.created_at).toLocaleDateString("en-KE"),
     }));
 
-  // Representation breakdown from demands
-  const directionCounts = {
-    incoming: allDemands.filter(d => d.direction === 'incoming').length,
-    outgoing: allDemands.filter(d => d.direction === 'outgoing').length,
-  };
-  const totalDemands = allDemands.length || 1;
+  // ── Disputes (top 3 with disputes) ──
+  const TOP_DISPUTES = allLand
+    .filter((l) => l.disputes && l.disputes.trim().length > 0)
+    .slice(0, 3)
+    .map((l) => ({
+      property: l.property || l.file_ref || "Unknown",
+      county: l.county || "—",
+      dispute: l.disputes?.substring(0, 80) + (l.disputes && l.disputes.length > 80 ? "…" : ""),
+      status: l.status,
+    }));
 
-  const REPRESENTATION = [
-    { label: "Incoming Demands", count: directionCounts.incoming, pct: (directionCounts.incoming / totalDemands) * 100 },
-    { label: "Outgoing Demands", count: directionCounts.outgoing, pct: (directionCounts.outgoing / totalDemands) * 100 },
-    { label: "Legal Dues", count: allLegalDues.length, pct: Math.min((allLegalDues.length / 50) * 100, 100) },
-    { label: "Staff Cases", count: allStaffCases.length, pct: Math.min((allStaffCases.length / 20) * 100, 100) },
-  ];
-
-  const filteredCases = RECENT_CASES.filter((c) =>
-    [c.ref, c.plaintiff, c.category, c.station].some((v) =>
-      v.toLowerCase().includes(search.toLowerCase())
+  // ── Filter recent records by search (fix null safety) ──
+  const filteredRecords = RECENT_RECORDS.filter((r) =>
+    [r.ref, r.property, r.county, r.status].some((v) =>
+      (v ?? '').toLowerCase().includes(search.toLowerCase())
     )
   );
 
-  const BAR_COLORS = ["#2563EB", "#7C3AED", "#059669", "#D97706"];
+  // ── Bar colors ──
+  const BAR_COLORS = ["#2563EB", "#7C3AED", "#059669", "#D97706", "#DC2626", "#8B5CF6"];
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-50" style={{ fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }}>
@@ -167,16 +148,16 @@ const AdminDashboard = () => {
       {/* ── Top bar ── */}
       <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 gap-4 flex-shrink-0">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Dashboard Overview</h1>
+          <h1 className="text-lg font-bold text-gray-900">Land Registry Dashboard</h1>
           <p className="text-xs text-gray-400">
-            {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} · FY {new Date().getFullYear()}/{new Date().getFullYear() + 1}
+            {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} · {totalProperties} records
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
             <input
               type="text"
-              placeholder="Search cases, parties…"
+              placeholder="Search properties, counties…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 w-52"
@@ -190,7 +171,7 @@ const AdminDashboard = () => {
             className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg text-white font-semibold transition-colors hover:opacity-90"
             style={{ background: "#1e40af" }}
           >
-            + New Case
+            + Add Property
           </button>
         </div>
       </header>
@@ -218,19 +199,19 @@ const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* ── Mid row ── */}
+        {/* ── Mid row: County & Status Breakdown ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-          {/* Category breakdown */}
+          {/* County breakdown */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
             <div className="px-5 py-4 border-b border-gray-50">
-              <h2 className="text-sm font-semibold text-gray-800">Cases by Category</h2>
+              <h2 className="text-sm font-semibold text-gray-800">Properties by County</h2>
             </div>
             <div className="px-5 py-4 space-y-3">
-              {CATEGORY_BREAKDOWN.length === 0 ? (
+              {COUNTY_BREAKDOWN.length === 0 ? (
                 <p className="text-center text-gray-400 py-4 text-sm">No data available</p>
               ) : (
-                CATEGORY_BREAKDOWN.map((c) => (
+                COUNTY_BREAKDOWN.map((c, i) => (
                   <div key={c.label}>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-gray-600">{c.label}</span>
@@ -239,7 +220,7 @@ const AdminDashboard = () => {
                     <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${(c.count / c.max) * 100}%`, background: "#2563EB" }}
+                        style={{ width: `${(c.count / c.max) * 100}%`, background: BAR_COLORS[i % BAR_COLORS.length] }}
                       />
                     </div>
                   </div>
@@ -248,41 +229,45 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Representation */}
+          {/* Status breakdown */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
             <div className="px-5 py-4 border-b border-gray-50">
-              <h2 className="text-sm font-semibold text-gray-800">Case Distribution</h2>
+              <h2 className="text-sm font-semibold text-gray-800">Properties by Status</h2>
             </div>
-            <div className="px-5 py-4 space-y-4">
-              {REPRESENTATION.map((r, i) => (
-                <div key={r.label}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-600">{r.label}</span>
-                    <span className="font-semibold text-gray-800">{r.count} cases</span>
+            <div className="px-5 py-4 space-y-3">
+              {STATUS_BREAKDOWN.length === 0 ? (
+                <p className="text-center text-gray-400 py-4 text-sm">No data available</p>
+              ) : (
+                STATUS_BREAKDOWN.map((s, i) => (
+                  <div key={s.label}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-gray-600">{s.label}</span>
+                      <span className="font-semibold text-gray-800">{s.count}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${(s.count / s.max) * 100}%`, background: BAR_COLORS[(i + 2) % BAR_COLORS.length] }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${Math.min(r.pct, 100)}%`, background: BAR_COLORS[i % BAR_COLORS.length] }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
 
-        {/* ── Recent Cases ── */}
+        {/* ── Recent Records ── */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-800">Recent Cases & Demands</h2>
+            <h2 className="text-sm font-semibold text-gray-800">Recent Land Records</h2>
             <button className="text-xs text-blue-600 hover:underline font-medium">View all →</button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-50">
-                  {["File Ref", "Party", "Category", "Station", "Filed", "Status"].map((h) => (
+                  {["File Ref", "Property", "County", "Status", "Acreage", "Created"].map((h) => (
                     <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                       {h}
                     </th>
@@ -290,23 +275,21 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredCases.length === 0 ? (
+                {filteredRecords.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-400">
-                      No cases match your search.
+                      No records match your search.
                     </td>
                   </tr>
                 ) : (
-                  filteredCases.map((c) => (
-                    <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer">
-                      <td className="px-5 py-3 font-semibold text-blue-600 whitespace-nowrap text-xs">{c.ref}</td>
-                      <td className="px-5 py-3 text-gray-800 max-w-[200px] truncate">{c.plaintiff}</td>
-                      <td className="px-5 py-3">
-                        <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{c.category}</span>
-                      </td>
-                      <td className="px-5 py-3 text-gray-500 text-xs">{c.station}</td>
-                      <td className="px-5 py-3 text-gray-400 text-xs whitespace-nowrap">{c.filed}</td>
-                      <td className="px-5 py-3"><StatusPill status={c.status} /></td>
+                  filteredRecords.map((r) => (
+                    <tr key={r.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer">
+                      <td className="px-5 py-3 font-semibold text-blue-600 whitespace-nowrap text-xs">{r.ref}</td>
+                      <td className="px-5 py-3 text-gray-800 max-w-[200px] truncate">{r.property}</td>
+                      <td className="px-5 py-3 text-gray-600 text-xs">{r.county}</td>
+                      <td className="px-5 py-3"><StatusPill status={r.status} /></td>
+                      <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">{r.acreage}</td>
+                      <td className="px-5 py-3 text-gray-400 text-xs whitespace-nowrap">{r.created}</td>
                     </tr>
                   ))
                 )}
@@ -315,22 +298,19 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* ── Outstanding Dues ── */}
+        {/* ── Top Disputes ── */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-800">Top Outstanding Dues</h2>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-400">
-                Total: <span className="font-bold text-red-600">{formatCurrency(outstandingDues)}</span>
-              </span>
-              <button className="text-xs text-blue-600 hover:underline font-medium">View all →</button>
-            </div>
+            <h2 className="text-sm font-semibold text-gray-800">Top Disputes</h2>
+            <span className="text-xs text-gray-400">
+              Total disputed: <span className="font-bold text-red-600">{disputedCount}</span>
+            </span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-50">
-                  {["Judgment Debtor", "Dispute", "Outstanding (KSh)", "Status"].map((h) => (
+                  {["Property", "County", "Dispute Description", "Status"].map((h) => (
                     <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">
                       {h}
                     </th>
@@ -338,18 +318,18 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {TOP_DUES.length === 0 ? (
+                {TOP_DISPUTES.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-5 py-8 text-center text-sm text-gray-400">
-                      No outstanding dues
+                      No disputes recorded
                     </td>
                   </tr>
                 ) : (
-                  TOP_DUES.map((d) => (
-                    <tr key={d.debtor} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-3 font-semibold text-gray-800 max-w-[200px] truncate" title={d.debtor}>{d.debtor}</td>
-                      <td className="px-5 py-3 text-gray-500 text-xs max-w-[250px] truncate" title={d.dispute}>{d.dispute}</td>
-                      <td className="px-5 py-3 font-bold text-red-600 tabular-nums whitespace-nowrap">{d.amount}</td>
+                  TOP_DISPUTES.map((d, idx) => (
+                    <tr key={idx} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
+                      <td className="px-5 py-3 font-semibold text-gray-800 max-w-[150px] truncate" title={d.property}>{d.property}</td>
+                      <td className="px-5 py-3 text-gray-600 text-xs">{d.county}</td>
+                      <td className="px-5 py-3 text-gray-500 text-xs max-w-[300px] truncate" title={d.dispute}>{d.dispute}</td>
                       <td className="px-5 py-3"><StatusPill status={d.status} /></td>
                     </tr>
                   ))

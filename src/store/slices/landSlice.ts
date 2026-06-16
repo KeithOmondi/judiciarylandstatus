@@ -227,8 +227,9 @@ const landSlice = createSlice({
   name: 'landStatus',
   initialState,
   reducers: {
+    // ✅ FIXED: removed forced page: 1 – now respects the payload
     setFilters(state, action: PayloadAction<Partial<LandStatusFilters>>) {
-      state.filters = { ...state.filters, ...action.payload, page: 1 };
+      state.filters = { ...state.filters, ...action.payload };
     },
     resetFilters(state) {
       state.filters = { page: 1, limit: 20 };
