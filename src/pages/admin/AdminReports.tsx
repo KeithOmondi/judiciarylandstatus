@@ -3,21 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hook';
 import {
-  fetchLegalDues,
-  selectLegalDuesSummary,
-  selectLegalDuesListLoading,
-} from '../../store/slices/legalduesSlice';
-import {
-  fetchDemands,
-  selectDemandsSummary,
-  selectDemandsListLoading,
-  formatCurrency,
-} from '../../store/slices/demandsSlice';
-import {
-  fetchStaffCases,
-  selectStaffCasesSummary,
-  selectStaffCasesListLoading,
-} from '../../store/slices/staffCasesSlice';
+  fetchLandStatus,
+  selectAllLandStatus,
+  selectLandStatusSummary,
+  selectLandStatusListLoading,
+} from '../../store/slices/landSlice';
 
 /* ============================================================
    SPINNER COMPONENT
@@ -114,48 +104,123 @@ const SectionCard = ({ title, children, icon }: SectionCardProps) => (
 );
 
 /* ============================================================
+   BREAKDOWN TABLE / LIST
+============================================================ */
+
+interface BreakdownItem {
+  label: string;
+  count: number;
+  max: number;
+}
+
+const BreakdownList = ({ items, color }: { items: BreakdownItem[]; color?: string }) => {
+  if (items.length === 0) {
+    return <p className="text-sm text-slate-400 text-center py-4">No data available</p>;
+  }
+  const barColor = color || '#2563EB';
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <div key={item.label}>
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-slate-600">{item.label}</span>
+            <span className="font-semibold text-slate-800">{item.count}</span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${(item.count / item.max) * 100}%`, background: barColor }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ============================================================
    MAIN REPORTS COMPONENT
 ============================================================ */
 
 const AdminReports = () => {
   const dispatch = useAppDispatch();
 
-  // Legal Dues Data
-  const legalSummary = useAppSelector(selectLegalDuesSummary);
-  const legalLoading = useAppSelector(selectLegalDuesListLoading);
-
-  // Demands Data
-  const demandsSummary = useAppSelector(selectDemandsSummary);
-  const demandsLoading = useAppSelector(selectDemandsListLoading);
-
-  // Staff Cases Data
-  const staffSummary = useAppSelector(selectStaffCasesSummary);
-  const staffLoading = useAppSelector(selectStaffCasesListLoading);
+  const allLand = useAppSelector(selectAllLandStatus);
+  const summary = useAppSelector(selectLandStatusSummary);
+  const loading = useAppSelector(selectLandStatusListLoading);
 
   const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleString());
 
-  // Fetch all data on mount
+  // Fetch land data on mount
   useEffect(() => {
-    const fetchAllData = async () => {
-      await Promise.all([
-        dispatch(fetchLegalDues({ limit: 100 })),
-        dispatch(fetchDemands({ limit: 100 })),
-        dispatch(fetchStaffCases({ limit: 100 })),
-      ]);
+    const fetchData = async () => {
+      await dispatch(fetchLandStatus({ limit: 500 })); // fetch enough for reports
       setLastUpdated(new Date().toLocaleString());
     };
-
-    fetchAllData();
+    fetchData();
   }, [dispatch]);
 
   const handleRefresh = () => {
     setLastUpdated(new Date().toLocaleString());
-    Promise.all([
-      dispatch(fetchLegalDues({ limit: 100 })),
-      dispatch(fetchDemands({ limit: 100 })),
-      dispatch(fetchStaffCases({ limit: 100 })),
-    ]);
+    dispatch(fetchLandStatus({ limit: 500 }));
   };
+
+  // ── Compute metrics ──
+  const totalProperties = summary?.total_properties ?? 0;
+  const totalCounties = summary?.counties ?? 0;
+
+  // Disputed count: non-empty disputes field
+  const disputedCount = allLand.filter((l) => l.disputes && l.disputes.trim().length > 0).length;
+
+  // Owned count (ownership_status contains 'owned' case-insensitive)
+  const ownedCount = allLand.filter(
+    (l) => l.ownership_status && l.ownership_status.toLowerCase().includes('owned')
+  ).length;
+
+  // Status breakdown
+  const statusCounts: Record<string, number> = {};
+  allLand.forEach((l) => {
+    const st = l.status || 'Unknown';
+    statusCounts[st] = (statusCounts[st] || 0) + 1;
+  });
+  const statusBreakdown: BreakdownItem[] = Object.entries(statusCounts)
+    .map(([label, count]) => ({ label, count, max: Math.max(...Object.values(statusCounts), 1) }))
+    .sort((a, b) => b.count - a.count);
+
+  // County breakdown
+  const countyCounts: Record<string, number> = {};
+  allLand.forEach((l) => {
+    const county = l.county || 'Unknown';
+    countyCounts[county] = (countyCounts[county] || 0) + 1;
+  });
+  const countyBreakdown: BreakdownItem[] = Object.entries(countyCounts)
+    .map(([label, count]) => ({ label, count, max: Math.max(...Object.values(countyCounts), 1) }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10); // show top 10 counties
+
+  // Ownership status breakdown
+  const ownershipCounts: Record<string, number> = {};
+  allLand.forEach((l) => {
+    const own = l.ownership_status || 'Unknown';
+    ownershipCounts[own] = (ownershipCounts[own] || 0) + 1;
+  });
+  const ownershipBreakdown: BreakdownItem[] = Object.entries(ownershipCounts)
+    .map(([label, count]) => ({ label, count, max: Math.max(...Object.values(ownershipCounts), 1) }))
+    .sort((a, b) => b.count - a.count);
+
+  // Intended use breakdown
+  const useCounts: Record<string, number> = {};
+  allLand.forEach((l) => {
+    const use = l.current_intended_use || 'Not specified';
+    useCounts[use] = (useCounts[use] || 0) + 1;
+  });
+  const useBreakdown: BreakdownItem[] = Object.entries(useCounts)
+    .map(([label, count]) => ({ label, count, max: Math.max(...Object.values(useCounts), 1) }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  // Average acreage (if we have numeric values, but we'll just show count)
+  // We can also compute total acreage if we parse, but skip for now.
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -163,7 +228,7 @@ const AdminReports = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Reports Dashboard</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Land Reports Dashboard</h1>
             <p className="text-sm text-slate-500 mt-0.5">
               Last updated: {lastUpdated}
             </p>
@@ -182,166 +247,131 @@ const AdminReports = () => {
         {/* Summary Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
-            title="Total Outstanding Legal Dues"
-            value={formatCurrency(legalSummary?.total_outstanding_all ?? 0)}
+            title="Total Properties"
+            value={totalProperties}
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1m-2 0h2" />
+              </svg>
+            }
+            color="blue"
+            loading={loading}
+          />
+          <StatCard
+            title="Counties"
+            value={totalCounties}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            }
+            color="purple"
+            loading={loading}
+          />
+          <StatCard
+            title="Disputed Properties"
+            value={disputedCount}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             }
             color="red"
-            loading={legalLoading}
+            loading={loading}
           />
           <StatCard
-            title="Total Paid (Legal Dues)"
-            value={formatCurrency(legalSummary?.total_paid_all ?? 0)}
+            title="Owned Properties"
+            value={ownedCount}
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             }
             color="green"
-            loading={legalLoading}
-          />
-          <StatCard
-            title="Total Incoming Demands"
-            value={demandsSummary?.total_incoming ?? 0}
-            icon={
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M6 14h12m-7 4h2M12 3v18" />
-              </svg>
-            }
-            color="amber"
-            loading={demandsLoading}
-          />
-          <StatCard
-            title="Total Staff Cases"
-            value={staffSummary?.total_cases ?? 0}
-            icon={
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            }
-            color="slate"
-            loading={staffLoading}
+            loading={loading}
           />
         </div>
 
-        {/* Second Row Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <StatCard
-            title="Total Amount Claimed"
-            value={formatCurrency(demandsSummary?.total_amount_claimed ?? 0)}
+        {/* Breakdown Sections */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Status Breakdown */}
+          <SectionCard
+            title="Properties by Status"
             icon={
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            }
-            color="purple"
-            loading={demandsLoading}
-          />
-          <StatCard
-            title="Total Amount Settled"
-            value={formatCurrency(demandsSummary?.total_amount_settled ?? 0)}
-            icon={
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             }
-            color="green"
-            loading={demandsLoading}
-          />
-          <StatCard
-            title="Pending / In Negotiation"
-            value={`${demandsSummary?.pending_count ?? 0} / ${demandsSummary?.in_negotiation_count ?? 0}`}
-            icon={
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            }
-            color="amber"
-            loading={demandsLoading}
-          />
-        </div>
+          >
+            <BreakdownList items={statusBreakdown} color="#7C3AED" />
+          </SectionCard>
 
-        {/* Legal Dues Section */}
-        <SectionCard
-          title="Legal Dues Overview"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-          }
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-slate-50 rounded-lg">
-              <p className="text-2xl font-bold text-red-600">{formatCurrency(legalSummary?.total_outstanding_all ?? 0)}</p>
-              <p className="text-xs text-slate-500 mt-1">Total Outstanding</p>
-            </div>
-            <div className="text-center p-3 bg-slate-50 rounded-lg">
-              <p className="text-2xl font-bold text-emerald-600">{formatCurrency(legalSummary?.total_paid_all ?? 0)}</p>
-              <p className="text-xs text-slate-500 mt-1">Total Paid</p>
-            </div>
-            <div className="text-center p-3 bg-slate-50 rounded-lg">
-              <p className="text-2xl font-bold text-amber-600">{formatCurrency(legalSummary?.total_interest_accrued_all ?? 0)}</p>
-              <p className="text-xs text-slate-500 mt-1">Interest Accrued</p>
-            </div>
-          </div>
-        </SectionCard>
-
-        {/* Demands Section */}
-        <div className="mt-6">
+          {/* County Breakdown */}
           <SectionCard
-            title="Demands Overview"
+            title="Top Counties"
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1m-2 0h2" />
               </svg>
             }
           >
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-red-50 rounded-lg">
-                <p className="text-2xl font-bold text-red-600">{demandsSummary?.total_incoming ?? 0}</p>
-                <p className="text-xs text-slate-500 mt-1">Incoming</p>
-              </div>
-              <div className="text-center p-3 bg-emerald-50 rounded-lg">
-                <p className="text-2xl font-bold text-emerald-600">{demandsSummary?.total_outgoing ?? 0}</p>
-                <p className="text-xs text-slate-500 mt-1">Outgoing</p>
-              </div>
-              <div className="text-center p-3 bg-amber-50 rounded-lg">
-                <p className="text-2xl font-bold text-amber-600">{demandsSummary?.pending_count ?? 0}</p>
-                <p className="text-xs text-slate-500 mt-1">Pending</p>
-              </div>
-              <div className="text-center p-3 bg-purple-50 rounded-lg">
-                <p className="text-2xl font-bold text-purple-600">{demandsSummary?.escalated_count ?? 0}</p>
-                <p className="text-xs text-slate-500 mt-1">Escalated</p>
-              </div>
-            </div>
+            <BreakdownList items={countyBreakdown} color="#2563EB" />
           </SectionCard>
         </div>
 
-        {/* Staff Criminal Cases Section */}
-        <div className="mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Ownership Breakdown */}
           <SectionCard
-            title="Staff Criminal Cases Overview"
+            title="Ownership Status"
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             }
           >
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="text-center p-3 bg-slate-50 rounded-lg">
-                <p className="text-2xl font-bold text-slate-900">{staffSummary?.total_cases ?? 0}</p>
-                <p className="text-xs text-slate-500 mt-1">Total Cases</p>
+            <BreakdownList items={ownershipBreakdown} color="#059669" />
+          </SectionCard>
+
+          {/* Intended Use Breakdown */}
+          <SectionCard
+            title="Intended Use"
+            icon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            }
+          >
+            <BreakdownList items={useBreakdown} color="#D97706" />
+          </SectionCard>
+        </div>
+
+        {/* Summary table with key figures */}
+        <div className="mt-6">
+          <SectionCard
+            title="Land Registry Summary"
+            icon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+              </svg>
+            }
+          >
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <p className="text-2xl font-bold text-blue-700">{totalProperties}</p>
+                <p className="text-xs text-slate-500 mt-1">Total Properties</p>
               </div>
-              <div className="text-center p-3 bg-amber-50 rounded-lg">
-                <p className="text-2xl font-bold text-amber-600">{staffSummary?.suspension_count ?? 0}</p>
-                <p className="text-xs text-slate-500 mt-1">Suspensions</p>
+              <div className="p-3 bg-purple-50 rounded-lg">
+                <p className="text-2xl font-bold text-purple-700">{totalCounties}</p>
+                <p className="text-xs text-slate-500 mt-1">Counties</p>
               </div>
-              <div className="text-center p-3 bg-red-50 rounded-lg">
-                <p className="text-2xl font-bold text-red-600">{staffSummary?.interdiction_count ?? 0}</p>
-                <p className="text-xs text-slate-500 mt-1">Interdictions</p>
+              <div className="p-3 bg-red-50 rounded-lg">
+                <p className="text-2xl font-bold text-red-700">{disputedCount}</p>
+                <p className="text-xs text-slate-500 mt-1">Disputed</p>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-lg">
+                <p className="text-2xl font-bold text-emerald-700">{ownedCount}</p>
+                <p className="text-xs text-slate-500 mt-1">Owned</p>
               </div>
             </div>
           </SectionCard>
@@ -352,7 +382,7 @@ const AdminReports = () => {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <h3 className="text-sm font-semibold text-slate-800">Export Reports</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Download comprehensive reports for audit and review</p>
+              <p className="text-xs text-slate-500 mt-0.5">Download comprehensive land reports for audit and review</p>
             </div>
             <div className="flex gap-3">
               <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">
@@ -375,4 +405,4 @@ const AdminReports = () => {
   );
 };
 
-export default AdminReports;
+export default AdminReports;  
