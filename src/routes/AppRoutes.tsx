@@ -10,6 +10,7 @@ import AdminDemands from "../pages/admin/AdminDemands";
 import AdminStaffCriminal from "../pages/admin/AdminStaffCriminal";
 import AdminReports from "../pages/admin/AdminReports";
 import AdminLands from "../pages/admin/Lands/AdminLands";
+import AdminUsers from "../pages/admin/AdminUsers";
 
 
 
@@ -69,6 +70,7 @@ const AppRoutes = () => {
           <Route path="/admin/staff-criminal" element={<AdminStaffCriminal />} />
           <Route path="/admin/reports" element={<AdminReports />} />
           <Route path="/admin/land" element={<AdminLands />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
         </Route>
       </Route> 
     </Routes>

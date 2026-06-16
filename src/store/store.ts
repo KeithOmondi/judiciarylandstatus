@@ -7,6 +7,7 @@ import { injectStore } from '../api/api';
 import demandsReducer from "./slices/demandsSlice"
 import staffCasesReducer from "./slices/staffCasesSlice"
 import landStatusReducer from "./slices/landSlice"
+import streamFileReducer from "./slices/streamSlice"
 
 export const store = configureStore({
   reducer: {
@@ -15,7 +16,8 @@ export const store = configureStore({
     legalDues: legalDuesReducer,
     demands: demandsReducer,
     staffCases: staffCasesReducer,
-    landStatus: landStatusReducer
+    landStatus: landStatusReducer,
+    streamFile: streamFileReducer
   },
 });
 

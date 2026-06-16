@@ -5,8 +5,19 @@ import axiosClient from '../../api/api';
 import type { AxiosError } from 'axios';
 
 /* ============================================================
-   TYPES - Aligned with Backend Schema
+   TYPES - Extended with documents
 ============================================================ */
+
+export interface LandStatusDocument {
+  id: number;
+  land_status_id: number;
+  public_id: string;
+  url: string;
+  filename: string;
+  mimetype: string;
+  size: number;
+  uploaded_at: string;
+}
 
 export interface LandStatus {
   id: number;
@@ -23,8 +34,12 @@ export interface LandStatus {
   fencing: string | null;
   disputes: string | null;
   recommendation: string | null;
+  latitude: number | null;   // ← new
+  longitude: number | null;  // ← new
   created_at: string;
   updated_at: string;
+  documents?: LandStatusDocument[];
+  documents_count?: number;
 }
 
 export interface CreateLandStatusDto {
@@ -41,9 +56,9 @@ export interface CreateLandStatusDto {
   fencing?: string;
   disputes?: string;
   recommendation?: string;
+  latitude?: number;   // ← new
+  longitude?: number;  // ← new
 }
-
-// REMOVED: UpdateLandStatusDto - use Partial<CreateLandStatusDto> directly
 
 export interface LandStatusFilters {
   county?: string;
@@ -129,23 +144,19 @@ const buildQueryString = (filters: LandStatusFilters): string => {
   return params.toString();
 };
 
-// Helper to format acreage
 export const formatAcreage = (acreage: string | null): string => {
   if (!acreage) return '—';
   return acreage;
 };
 
-// Helper to get status badge color
 export const getStatusBadgeClass = (status: string | null): string => {
   if (!status) return 'bg-gray-100 text-gray-700';
-  
   const statusLower = status.toLowerCase();
   if (statusLower.includes('uprojected')) return 'bg-amber-100 text-amber-700';
   if (statusLower.includes('owned')) return 'bg-emerald-100 text-emerald-700';
   if (statusLower.includes('disputed')) return 'bg-red-100 text-red-700';
   if (statusLower.includes('pending')) return 'bg-blue-100 text-blue-700';
   if (statusLower.includes('completed')) return 'bg-green-100 text-green-700';
-  
   return 'bg-gray-100 text-gray-700';
 };
 
@@ -153,7 +164,6 @@ export const getStatusBadgeClass = (status: string | null): string => {
    ASYNC THUNKS
 ============================================================ */
 
-// Fetch all land status records with filters
 export const fetchLandStatus = createAsyncThunk(
   'landStatus/fetchAll',
   async (filters: LandStatusFilters, { rejectWithValue }) => {
@@ -167,7 +177,6 @@ export const fetchLandStatus = createAsyncThunk(
   }
 );
 
-// Fetch land status by ID
 export const fetchLandStatusById = createAsyncThunk(
   'landStatus/fetchById',
   async (id: number, { rejectWithValue }) => {
@@ -180,12 +189,13 @@ export const fetchLandStatusById = createAsyncThunk(
   }
 );
 
-// Create new land status record
 export const createLandStatus = createAsyncThunk(
   'landStatus/create',
-  async (payload: CreateLandStatusDto, { rejectWithValue }) => {
+  async (formData: FormData, { rejectWithValue }) => {
     try {
-      const response = await axiosClient.post('/land-status', payload);
+      const response = await axiosClient.post('/land-status', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       return response.data.data as LandStatus;
     } catch (err) {
       return rejectWithValue(extractErrorMessage(err));
@@ -193,12 +203,13 @@ export const createLandStatus = createAsyncThunk(
   }
 );
 
-// Update land status record - Use Partial<CreateLandStatusDto> directly
 export const updateLandStatus = createAsyncThunk(
   'landStatus/update',
-  async ({ id, payload }: { id: number; payload: Partial<CreateLandStatusDto> }, { rejectWithValue }) => {
+  async ({ id, formData }: { id: number; formData: FormData }, { rejectWithValue }) => {
     try {
-      const response = await axiosClient.put(`/land-status/${id}`, payload);
+      const response = await axiosClient.put(`/land-status/${id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       return response.data.data as LandStatus;
     } catch (err) {
       return rejectWithValue(extractErrorMessage(err));
@@ -206,7 +217,6 @@ export const updateLandStatus = createAsyncThunk(
   }
 );
 
-// Delete land status record
 export const deleteLandStatus = createAsyncThunk(
   'landStatus/delete',
   async (id: number, { rejectWithValue }) => {
@@ -227,7 +237,6 @@ const landSlice = createSlice({
   name: 'landStatus',
   initialState,
   reducers: {
-    // ✅ FIXED: removed forced page: 1 – now respects the payload
     setFilters(state, action: PayloadAction<Partial<LandStatusFilters>>) {
       state.filters = { ...state.filters, ...action.payload };
     },
@@ -289,9 +298,8 @@ const landSlice = createSlice({
         state.loading.mutating = false;
         state.records.unshift(action.payload);
         state.pagination.total += 1;
-        if (state.summary) {
-          state.summary.total_properties += 1;
-        }
+        if (state.summary) state.summary.total_properties += 1;
+        state.selectedRecord = action.payload;
       })
       .addCase(createLandStatus.rejected, (state, action) => {
         state.loading.mutating = false;
@@ -327,9 +335,7 @@ const landSlice = createSlice({
         state.records = state.records.filter((r) => r.id !== action.payload);
         if (state.selectedRecord?.id === action.payload) state.selectedRecord = null;
         state.pagination.total -= 1;
-        if (state.summary && deletedRecord) {
-          state.summary.total_properties -= 1;
-        }
+        if (state.summary && deletedRecord) state.summary.total_properties -= 1;
       })
       .addCase(deleteLandStatus.rejected, (state, action) => {
         state.loading.mutating = false;
@@ -342,11 +348,11 @@ const landSlice = createSlice({
    ACTIONS
 ============================================================ */
 
-export const { 
-  setFilters, 
-  resetFilters, 
-  clearSelectedRecord, 
-  clearError 
+export const {
+  setFilters,
+  resetFilters,
+  clearSelectedRecord,
+  clearError,
 } = landSlice.actions;
 
 /* ============================================================
@@ -364,11 +370,10 @@ export const selectLandStatusDetailLoading = (state: { landStatus: LandStatusSta
 export const selectLandStatusMutating = (state: { landStatus: LandStatusState }) => state.landStatus.loading.mutating;
 export const selectLandStatusError = (state: { landStatus: LandStatusState }) => state.landStatus.error;
 
-// Computed selectors
-export const selectTotalProperties = (state: { landStatus: LandStatusState }) => 
+export const selectTotalProperties = (state: { landStatus: LandStatusState }) =>
   state.landStatus.summary?.total_properties ?? 0;
 
-export const selectTotalCounties = (state: { landStatus: LandStatusState }) => 
+export const selectTotalCounties = (state: { landStatus: LandStatusState }) =>
   state.landStatus.summary?.counties ?? 0;
 
 export default landSlice.reducer;
