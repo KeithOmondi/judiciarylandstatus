@@ -38,12 +38,17 @@ export const Login: React.FC = () => {
         return;
       }
 
-      // Dynamic Role Fallback Navigation Logic
+      // Dynamic Role-Based Navigation
       switch (user.role) {
-        
         case 'admin':
           navigate('/admin/dashboard', { replace: true });
-          
+          break;
+        case 'user':
+          navigate('/user/dashboard', { replace: true });
+          break;
+        default:
+          // Fallback - should never happen with proper role types
+          navigate('/dashboard', { replace: true });
           break;
       }
     }
@@ -65,6 +70,16 @@ export const Login: React.FC = () => {
     e.preventDefault();
     if (!pjNumber.trim() || !otp.trim()) return;
     dispatch(verifyOtp({ pj_number: pjNumber.trim(), otp: otp.trim() }));
+  };
+
+  /**
+   * Go back to PJ number entry
+   */
+  const handleBackToPJEntry = () => {
+    setOtp('');
+    dispatch(clearError());
+    // Optionally reset the OTP requested state if you want to go back fully
+    // But the current implementation just clears OTP and error
   };
 
   return (
@@ -105,6 +120,7 @@ export const Login: React.FC = () => {
                 disabled={isLoading}
                 className="w-full rounded border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-[#1E4620] focus:ring-1 focus:ring-[#1E4620] disabled:bg-stone-50 disabled:text-stone-400"
                 required
+                autoFocus
               />
             </div>
             <button 
@@ -137,6 +153,7 @@ export const Login: React.FC = () => {
                 disabled={isLoading}
                 className="w-full rounded border border-stone-300 bg-white px-3 py-2.5 text-center text-xl font-bold tracking-[0.3em] text-stone-900 outline-none transition placeholder:tracking-normal placeholder:text-sm placeholder:font-normal placeholder:text-stone-400 focus:border-[#1E4620] focus:ring-1 focus:ring-[#1E4620] disabled:bg-stone-50 disabled:text-stone-400"
                 required
+                autoFocus
               />
             </div>
 
@@ -151,10 +168,7 @@ export const Login: React.FC = () => {
             <button
               type="button"
               disabled={isLoading}
-              onClick={() => {
-                setOtp('');
-                dispatch(clearError());
-              }}
+              onClick={handleBackToPJEntry}
               className="mt-1 text-center text-xs text-stone-500 underline transition hover:text-[#A37F2B] disabled:no-underline"
             >
               Modify PJ Number Entry

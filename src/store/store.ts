@@ -8,6 +8,7 @@ import demandsReducer from "./slices/demandsSlice"
 import staffCasesReducer from "./slices/staffCasesSlice"
 import landStatusReducer from "./slices/landSlice"
 import streamFileReducer from "./slices/streamSlice"
+import userReducer from './slices/userSlice';
 
 export const store = configureStore({
   reducer: {
@@ -17,7 +18,8 @@ export const store = configureStore({
     demands: demandsReducer,
     staffCases: staffCasesReducer,
     landStatus: landStatusReducer,
-    streamFile: streamFileReducer
+    streamFile: streamFileReducer,
+    users: userReducer,
   },
 });
 

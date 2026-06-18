@@ -2,7 +2,9 @@ import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/tool
 import { AxiosError } from 'axios';
 import axiosClient from '../../api/api';
 
-export type UserRole = 'admin';
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type UserRole = 'admin' | 'user'; // ✅ Updated to support both roles
 
 export interface UserMetadata {
   id: string;
@@ -32,9 +34,10 @@ const initialState: AuthState = {
   createUserSuccess: false,
 };
 
+// ─── Utility Functions ──────────────────────────────────────────────────────
+
 const getErrorMessage = (error: unknown): string => {
   if (error && typeof error === 'object' && 'isAxiosError' in error) {
-    // Typing the expected backend error structure instead of using 'any'
     const axiosError = error as AxiosError<{ message?: string; error?: string }>;
     return (
       axiosError.response?.data?.message ||
@@ -45,6 +48,20 @@ const getErrorMessage = (error: unknown): string => {
   }
   if (error instanceof Error) return error.message;
   return 'An unknown error occurred';
+};
+
+// ─── Helper Functions ──────────────────────────────────────────────────────
+
+export const isAdmin = (user: UserMetadata | null): boolean => {
+  return user?.role === 'admin';
+};
+
+export const isUser = (user: UserMetadata | null): boolean => {
+  return user?.role === 'user';
+};
+
+export const hasRole = (user: UserMetadata | null, role: UserRole): boolean => {
+  return user?.role === role;
 };
 
 // ─── Thunks ───────────────────────────────────────────────────────────────────
@@ -101,7 +118,7 @@ export interface CreateUserPayload {
   full_name: string;
   email: string;
   pj_number: string;
-  role?: UserRole;
+  role?: UserRole; // ✅ Now accepts 'admin' or 'user'
 }
 
 export const createUser = createAsyncThunk(
@@ -217,5 +234,11 @@ const authSlice = createSlice({
   },
 });
 
-export const { setAccessToken, clearAuth, clearError, clearCreateUserSuccess } = authSlice.actions;
+export const { 
+  setAccessToken, 
+  clearAuth, 
+  clearError, 
+  clearCreateUserSuccess 
+} = authSlice.actions;
+
 export default authSlice.reducer;

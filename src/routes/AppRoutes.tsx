@@ -11,6 +11,10 @@ import AdminStaffCriminal from "../pages/admin/AdminStaffCriminal";
 import AdminReports from "../pages/admin/AdminReports";
 import AdminLands from "../pages/admin/Lands/AdminLands";
 import AdminUsers from "../pages/admin/AdminUsers";
+import UserDashboard from "../pages/user/UserDashboard";
+import UserLayout from "../components/user/UserLayout";
+import UserLandRecord from "../pages/user/UserLandRecord";
+import UserProfile from "../components/user/UserProfile";
 
 
 
@@ -73,6 +77,15 @@ const AppRoutes = () => {
           <Route path="/admin/users" element={<AdminUsers />} />
         </Route>
       </Route> 
+
+
+      <Route element={<ProtectedRoutes allowedRoles={['user']} />}>
+        <Route element={<UserLayout />}>
+          <Route path="/user/dashboard" element={<UserDashboard />} />
+          <Route path="/user/land" element={<UserLandRecord />} />
+          <Route path="/user/profile" element={<UserProfile />} />
+        </Route>
+      </Route>
     </Routes>
   )
 }
